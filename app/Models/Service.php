@@ -20,6 +20,10 @@ class Service extends Model
         'user_id',
     ];
 
+    protected $casts = [
+        'images' => 'json', // Assurez-vous que le champ images est casté en JSON
+    ];
+
     public function category()
     {
         return $this->belongsTo(ServiceCategory::class);

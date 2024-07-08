@@ -84,4 +84,27 @@ class UserController extends Controller
 
         return response()->json(null, 204);
     }
+
+    public function getUsers()
+    {
+        return User::select('id', 'name', 'email', 'surname', 'telephone', 'role')->get();
+    }
+
+    // Get all clients
+    public function getClients()
+    {
+        return User::where('role', 'CLIENT')->select('id', 'name', 'email', 'surname', 'telephone', 'role')->get();
+    }
+
+    // Get all providers
+    public function getProviders()
+    {
+        return User::where('role', 'PROVIDER')->select('id', 'name', 'email', 'surname', 'telephone', 'role')->get();
+    }
+
+    // Get all admins
+    public function getAdmins()
+    {
+        return User::where('role', 'ADMIN')->select('id', 'name', 'email', 'surname', 'telephone', 'role')->get();
+    }
 }

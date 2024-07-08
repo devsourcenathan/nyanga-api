@@ -1,52 +1,82 @@
 <?php
-// app/Http/Controllers/ServiceCategoryController.php
+// app/Http/Controllers/ServiceController.php
 
 namespace App\Http\Controllers;
 
-use App\Models\ServiceCategory;
+use App\Models\Service;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 
-class ServiceCategoryController extends Controller
+class ServiceController extends Controller
 {
     public function index()
     {
-        return ServiceCategory::all();
+        return Service::all();
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'label' => 'required|string|unique:service_categories|max:255',
-            'description' => 'nullable|string|max:1000',
+            'label' => 'required',
+            'description' => 'nullable',
+            'time' => 'required|integer',
+            'amount' => 'required|numeric',
+            'discount' => 'nullable|numeric',
+            // 'images' => 'nullable|array',
+            'category_id' => 'required|exists:service_categories,id',
+            'user_id' => 'required|exists:users,id',
         ]);
 
-        $category = ServiceCategory::create($request->all());
+        // $uploadedImages = [];
+        // if ($request->hasFile('images')) {
+        //     $uploadedFile = $request->file('images');
+        //     $path = $uploadedFile->store('public/images'); // Stocke l'image dans storage/app/public/images
+        //     $uploadedImages[] = Storage::url($path); // Stocke le chemin d'accès public de l'image
+        // }
 
-        return response()->json($category, 201);
+
+        $service = Service::create([
+            'label' => $request->input('label'),
+            'description' => $request->input('description'),
+            'time' => $request->input('time'),
+            'amount' => $request->input('amount'),
+            'discount' => $request->input('discount'),
+            // 'images' => $uploadedImages,
+            'category_id' => $request->input('category_id'),
+            'user_id' => $request->input('user_id'),
+        ]);
+        return response()->json($service, Response::HTTP_CREATED);
     }
 
-    public function show(ServiceCategory $category)
+    public function show(Service $service)
     {
-        return $category;
+        return $service;
     }
 
-    public function update(Request $request, ServiceCategory $category)
+    public function update(Request $request, Service $service)
     {
         $request->validate([
-            'label' => 'required|string|unique:service_categories,label,' . $category->id . '|max:255',
-            'description' => 'nullable|string|max:1000',
+            'label' => 'required',
+            'description' => 'nullable',
+            'time' => 'required|integer',
+            'amount' => 'required|numeric',
+            'discount' => 'nullable|numeric',
+            'images' => 'nullable|array',
+            'category_id' => 'required|exists:service_categories,id',
+            'user_id' => 'required|exists:users,id',
         ]);
 
-        $category->update($request->all());
 
-        return response()->json($category);
+        $service->update($request->all());
+
+        return response()->json($service, Response::HTTP_OK);
     }
 
-    public function destroy(ServiceCategory $category)
+    public function destroy(Service $service)
     {
-        $category->delete();
+        $service->delete();
 
-        return response()->json(null, 204);
+        return response()->json(null, Response::HTTP_NO_CONTENT);
     }
 }

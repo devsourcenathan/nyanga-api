@@ -28,4 +28,8 @@ Route::apiResource('towns', TownController::class);
 Route::apiResource('users', UserController::class);
 Route::apiResource('product-categories', ProductCategoryController::class);
 Route::apiResource('service-categories', ServiceCategoryController::class);
+
+Route::get('/clients', [UserController::class, 'getClients']);
+Route::get('/providers', [UserController::class, 'getProviders']);
+Route::get('/admins', [UserController::class, 'getAdmins']);
 Route::apiResource('services', ServiceController::class);
