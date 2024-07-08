@@ -8,12 +8,38 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 
+
 class ServiceController extends Controller
 {
     public function index()
     {
         return Service::all();
     }
+
+    /**
+     * Store a new service.
+     *
+     * @bodyParam name string required The name of the service.
+     * @bodyParam description string The description of the service.
+     *
+     * @response {
+     *   "message": "Service created successfully.",
+     *   "service": {
+     *     "id": 1,
+     *     "name": "Service Name",
+     *     "description": "Service Description",
+     *     "created_at": "2022-01-01T00:00:00.000000Z",
+     *     "updated_at": "2022-01-01T00:00:00.000000Z"
+     *   }
+     * }
+     *
+     * @response 500 {
+     *   "message": "Error creating service."
+     * }
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\Response
+     */
 
     public function store(Request $request)
     {

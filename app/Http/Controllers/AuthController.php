@@ -2,90 +2,172 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\OTPMail;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-
-
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    // public function login(Request $request)
-    // {
-    //     $credentials = $request->only('email', 'password');
-
-    //     if (Auth::attempt($credentials)) {
-    //         $user = Auth::user();
-    //         $token = $user->createToken('authToken')->plainTextToken;
-
-    //         return response()->json(['token' => $token], 200);
-    //     } else {
-    //         return response()->json(['error' => 'Unauthorized'], 401);
-    //     }
-    // }
-
     public function register(Request $request)
     {
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => bcrypt($request->password),
+        $request->validate([
+            'email' => 'required|email|unique:users,email',
+            'name' => 'required|string|max:255',
+            'surname' => 'required|string|max:255',
+            'password' => 'required|string|min:6',
+            'telephone' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'logo' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:255',
         ]);
 
-        $token = $user->createToken('authToken')->plainTextToken;
+        try {
+            $otp = mt_rand(1000, 9999);
 
-        return response()->json(['token' => $token], 201);
+            $user = User::where('email', $request->email)->first();
+            if ($user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet email existe déjà.',
+                ], 409);
+            }
+
+            $user = User::create([
+                'email' => $request->email,
+                'name' => $request->name,
+                'surname' => $request->surname,
+                'password' => Hash::make($request->password),
+                'telephone' => $request->telephone,
+                'address' => $request->address,
+                'logo' => $request->logo,
+                'description' => $request->description,
+                'role' => $request->role ?? 'CLIENT',
+                'status' => false,
+                'otp' => $otp
+            ]);
+
+            Mail::to($request->email)->send(new OTPMail($otp));
+
+            $token = $user->createToken('authToken')->plainTextToken;
+
+            return response()->json(['token' => $token], 201);
+        } catch (ValidationException $e) {
+            if ($e->errors() && isset($e->errors()['email'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet email existe déjà.',
+                ], 400);
+            }
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function logout(Request $request)
     {
         $request->user()->tokens()->delete();
-
         return response()->json(['message' => 'Logged out'], 200);
     }
 
     public function user(Request $request)
     {
-        $user = $request->user(); // Utilisateur authentifié
-        return response()->json($user);
+        return response()->json($request->user());
     }
 
     public function update_password(Request $request, $id)
     {
-        $user = User::find($id);
-
-        $user->password = bcrypt($request->password);
-
-        return response()->json($user->save());
-    }
-    public function users(Request $request)
-    {
-        return DB::table("users")->get(["email", "name", "id", "role", "permissions", "service_id"]);
-    }
-
-    public function registerProvider(Request $request)
-    {
         $request->validate([
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
-            // Add other fields validation as per your requirements
+            'old_password' => 'required',
+            'new_password' => 'required|string|min:6|confirmed',
         ]);
 
         try {
+            $user = User::findOrFail($id);
+
+            if (!Hash::check($request->old_password, $user->password)) {
+                return response()->json(['message' => 'Old password does not match'], 400);
+            }
+
+            $user->password = Hash::make($request->new_password);
+            $user->save();
+
+            return response()->json(['message' => 'Password updated successfully'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 400);
+        }
+    }
+
+    public function signupProvider(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'name' => 'required|string|max:255',
+            'surname' => 'required|string|max:255',
+            'password' => 'required|string|min:6',
+            'telephone' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'logo' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $otp = mt_rand(1000, 9999);
+
+            $user = User::where('email', $request->email)->first();
+            if ($user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet email existe déjà.',
+                ], 409);
+            }
+
             $user = User::create([
                 'email' => $request->email,
+                'name' => $request->name,
+                'surname' => $request->surname,
                 'password' => Hash::make($request->password),
+                'telephone' => $request->telephone,
+                'address' => $request->address,
+                'logo' => $request->logo,
+                'description' => $request->description,
                 'role' => 'PROVIDER',
+                'status' => false,
+                'otp' => $otp,
             ]);
+
+
+            // Mail::send('emails.otp', ['otp' => $otp], function ($message) use ($request) {
+            //     $message->to($request->email)->subject('Votre code OTP');
+            // });
+            Mail::to($request->email)->send(new OTPMail($otp));
+
 
             return response()->json([
                 'success' => true,
                 'message' => 'Account created successfully',
                 'data' => $user,
             ], 201);
+        } catch (ValidationException $e) {
+            if ($e->errors() && isset($e->errors()['email'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet email existe déjà.',
+                ], 400);
+            }
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -94,34 +176,63 @@ class AuthController extends Controller
         }
     }
 
-    // Register a customer
-    public function registerCustomer(Request $request)
+    public function signupClient(Request $request)
     {
         $request->validate([
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
-            // Add other fields validation as per your requirements
+            'name' => 'required|string|max:255',
+            'surname' => 'required|string|max:255',
+            'password' => 'required|string|min:6',
+            'telephone' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'logo' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:255',
         ]);
 
         try {
-            $otp = mt_rand(1000, 9999); // Generate OTP
+            $otp = mt_rand(1000, 9999);
+
+            $user = User::where('email', $request->email)->first();
+            if ($user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet email existe déjà.',
+                ], 409);
+            }
 
             $user = User::create([
                 'email' => $request->email,
+                'name' => $request->name,
+                'surname' => $request->surname,
                 'password' => Hash::make($request->password),
+                'telephone' => $request->telephone,
+                'address' => $request->address,
+                'logo' => $request->logo,
+                'description' => $request->description,
                 'role' => 'CLIENT',
                 'status' => false,
                 'otp' => $otp,
             ]);
 
-            // Send OTP email
-            // Mail::to($request->email)->send(new OTPMail($otp));
+
+            Mail::to($request->email)->send(new OTPMail($otp));
 
             return response()->json([
                 'success' => true,
                 'message' => 'Account created successfully',
                 'data' => $user,
             ], 201);
+        } catch (ValidationException $e) {
+            if ($e->errors() && isset($e->errors()['email'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet email existe déjà.',
+                ], 400);
+            }
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -130,7 +241,6 @@ class AuthController extends Controller
         }
     }
 
-    // Verify OTP for user registration
     public function verifyOtp(Request $request)
     {
         $request->validate([
@@ -149,14 +259,10 @@ class AuthController extends Controller
                 throw new \Exception('Invalid OTP');
             }
 
-            // Update user status and clear OTP
             $user->update([
                 'otp' => null,
                 'status' => true,
             ]);
-
-            // Send welcome email
-            // Mail::to($user->email)->send(new WelcomeMail());
 
             return response()->json([
                 'success' => true,
@@ -170,12 +276,11 @@ class AuthController extends Controller
         }
     }
 
-    // Login user
     public function login(Request $request)
     {
         $credentials = $request->validate([
             'email' => 'required|email',
-            'password' => 'required',
+            'password' => 'required|string|min:6',
         ]);
 
         if (!auth()->attempt($credentials)) {
@@ -195,7 +300,6 @@ class AuthController extends Controller
         ], 200);
     }
 
-    // Forgot password: Generate OTP and send reset email
     public function forgotPassword(Request $request)
     {
         $request->validate([
@@ -209,16 +313,14 @@ class AuthController extends Controller
                 throw new \Exception('User not found');
             }
 
-            $otp = mt_rand(1000, 9999); // Generate OTP
+            $otp = mt_rand(1000, 9999);
 
-            // Update user with OTP and expiry time
+            Mail::to($request->email)->send(new OTPMail($otp));
+
             $user->update([
                 'reset_password_otp' => $otp,
                 'reset_password_expires' => now()->addHour(),
             ]);
-
-            // Send OTP reset email
-            // Mail::to($user->email)->send(new ResetPasswordMail($otp));
 
             return response()->json([
                 'success' => true,
@@ -232,13 +334,12 @@ class AuthController extends Controller
         }
     }
 
-    // Reset password: Verify OTP and update password
     public function resetPassword(Request $request)
     {
         $request->validate([
             'email' => 'required|email',
             'otp' => 'required',
-            'password' => 'required|min:6',
+            'password' => 'required|string|min:6',
         ]);
 
         try {
@@ -251,7 +352,6 @@ class AuthController extends Controller
                 throw new \Exception('Invalid or expired OTP');
             }
 
-            // Update user password and clear OTP
             $user->update([
                 'password' => Hash::make($request->password),
                 'reset_password_otp' => null,

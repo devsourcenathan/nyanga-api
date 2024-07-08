@@ -5,12 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
     public function index()
     {
         return User::all();
+    }
+
+    public function profile(Request $request)
+    {
+        $user = $request->user(); // Utilisateur authentifié
+        return response()->json($user);
     }
 
     public function store(Request $request)
@@ -76,6 +83,25 @@ class UserController extends Controller
         $user->update($request->all());
 
         return response()->json($user);
+    }
+
+    public function update_password(Request $request)
+    {
+        $user = $request->user();
+        $request->validate([
+            'old_password' => 'required',
+            'new_password' => 'required|confirmed',
+        ]);
+
+        if (!Hash::check($request->old_password, $user->password)) {
+            return response()->json(['error' => 'L\'ancien mot de passe est incorrect.'], 401);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
+
+        return response()->json(['message' => 'Mot de passe mis à jour avec succès.']);
     }
 
     public function destroy(User $user)
