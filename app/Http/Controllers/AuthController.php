@@ -8,69 +8,21 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
+use Upload;
 
 class AuthController extends Controller
 {
+    use OTPHandler;
+
+    const ROLE_CLIENT = 'CLIENT';
+    const ROLE_PROVIDER = 'PROVIDER';
+    const STATUS_INACTIVE = false;
+    const STATUS_ACTIVE = true;
+
     public function register(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email|unique:users,email',
-            'name' => 'required|string|max:255',
-            'surname' => 'required|string|max:255',
-            'password' => 'required|string|min:6',
-            'telephone' => 'nullable|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'logo' => 'nullable|string|max:255',
-            'description' => 'nullable|string|max:255',
-        ]);
-
-        try {
-            $otp = mt_rand(1000, 9999);
-
-            $user = User::where('email', $request->email)->first();
-            if ($user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet email existe déjà.',
-                ], 409);
-            }
-
-            $user = User::create([
-                'email' => $request->email,
-                'name' => $request->name,
-                'surname' => $request->surname,
-                'password' => Hash::make($request->password),
-                'telephone' => $request->telephone,
-                'address' => $request->address,
-                'logo' => $request->logo,
-                'description' => $request->description,
-                'role' => $request->role ?? 'CLIENT',
-                'status' => false,
-                'otp' => $otp
-            ]);
-
-            Mail::to($request->email)->send(new OTPMail($otp));
-
-            $token = $user->createToken('authToken')->plainTextToken;
-
-            return response()->json(['token' => $token], 201);
-        } catch (ValidationException $e) {
-            if ($e->errors() && isset($e->errors()['email'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet email existe déjà.',
-                ], 400);
-            }
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
+        $this->validateSignupRequest($request);
+        return $this->createUserAndSendOTP($request, $request->role ?? self::ROLE_CLIENT);
     }
 
     public function logout(Request $request)
@@ -103,169 +55,20 @@ class AuthController extends Controller
 
             return response()->json(['message' => 'Password updated successfully'], 200);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 400);
+            return $this->handleException($e);
         }
     }
 
     public function signupProvider(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email',
-            'name' => 'required|string|max:255',
-            'surname' => 'required|string|max:255',
-            'password' => 'required|string|min:6',
-        ]);
-
-        try {
-            $otp = mt_rand(1000, 9999);
-
-            $user = User::where('email', $request->email)->first();
-            if ($user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet email existe déjà.',
-                ], 409);
-            }
-
-            $user = User::create([
-                'email' => $request->email,
-                'name' => $request->name,
-                'surname' => $request->surname,
-                'password' => Hash::make($request->password),
-                'telephone' => $request->telephone,
-                'address' => $request->address,
-                'logo' => $request->logo,
-                'description' => $request->description,
-                'role' => 'PROVIDER',
-                'status' => false,
-                'otp' => $otp,
-            ]);
-
-
-            // Mail::send('emails.otp', ['otp' => $otp], function ($message) use ($request) {
-            //     $message->to($request->email)->subject('Votre code OTP');
-            // });
-            Mail::to($request->email)->send(new OTPMail($otp));
-
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Account created successfully',
-                'data' => $user,
-            ], 201);
-        } catch (ValidationException $e) {
-            if ($e->errors() && isset($e->errors()['email'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet email existe déjà.',
-                ], 400);
-            }
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
+        $this->validateSignupRequest($request);
+        return $this->createUserAndSendOTP($request, self::ROLE_PROVIDER);
     }
 
     public function signupClient(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email|unique:users,email',
-            'name' => 'required|string|max:255',
-            'surname' => 'required|string|max:255',
-            'password' => 'required|string|min:6'
-        ]);
-
-        try {
-            $otp = mt_rand(1000, 9999);
-
-            $user = User::where('email', $request->email)->first();
-            if ($user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet email existe déjà.',
-                ], 409);
-            }
-
-            $user = User::create([
-                'email' => $request->email,
-                'name' => $request->name,
-                'surname' => $request->surname,
-                'password' => Hash::make($request->password),
-                'telephone' => $request->telephone,
-                'address' => $request->address,
-                'logo' => $request->logo,
-                'description' => $request->description,
-                'role' => 'CLIENT',
-                'status' => false,
-                'otp' => $otp,
-            ]);
-
-
-            Mail::to($request->email)->send(new OTPMail($otp));
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Account created successfully',
-                'data' => $user,
-            ], 201);
-        } catch (ValidationException $e) {
-            if ($e->errors() && isset($e->errors()['email'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet email existe déjà.',
-                ], 400);
-            }
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function verifyOtp(Request $request)
-    {
-        $request->validate([
-            'email' => 'required|email',
-            'otp' => 'required',
-        ]);
-
-        try {
-            $user = User::where('email', $request->email)->first();
-
-            if (!$user) {
-                throw new \Exception('User not found');
-            }
-
-            if ($user->otp != $request->otp) {
-                throw new \Exception('Invalid OTP');
-            }
-
-            $user->update([
-                'otp' => null,
-                'status' => true,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'OTP verified successfully',
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
-        }
+        $this->validateSignupRequest($request);
+        return $this->createUserAndSendOTP($request, self::ROLE_CLIENT);
     }
 
     public function login(Request $request)
@@ -292,6 +95,114 @@ class AuthController extends Controller
         ], 200);
     }
 
+    private function validateSignupRequest(Request $request)
+    {
+        return $request->validate([
+            'email' => 'required|email|unique:users,email',
+            'name' => 'required|string|max:255',
+            'surname' => 'required|string|max:255',
+            'password' => 'required|string|min:6',
+            'telephone' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'logo' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:255',
+        ]);
+    }
+
+    private function createUserAndSendOTP(Request $request, $role)
+    {
+        try {
+            $user = $this->createUser($request->all(), $role);
+            $this->sendOTPEmail($user->email, $user->otp);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Account created successfully',
+                'data' => $user,
+            ], 201);
+        } catch (\Exception $e) {
+            return $this->handleException($e);
+        }
+    }
+
+    private function createUser(array $data, $role)
+    {
+        $otp = $this->generateOTP();
+        $logo = Upload::uploadFile($data['logo']);
+        return User::create(
+            array_merge(
+                $data,
+                [
+                    'password' => Hash::make($data['password']),
+                    'role' => $role,
+                    'status' => self::STATUS_INACTIVE,
+                    'otp' => $otp,
+                    'logo' => $logo
+                ]
+            )
+        );
+    }
+
+    private function generateOTP()
+    {
+        return mt_rand(1000, 9999);
+    }
+
+    private function sendOTPEmail($email, $otp)
+    {
+        Mail::to($email)->send(new OTPMail($otp));
+    }
+
+    private function handleException(\Exception $e)
+    {
+        if ($e instanceof ValidationException && isset($e->errors()['email'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cet email existe déjà.',
+            ], 400);
+        }
+        return 'An error occurred. Please try again later.';
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+        ], $e instanceof ValidationException ? 400 : 500);
+    }
+}
+
+trait OTPHandler
+{
+    public function verifyOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required',
+        ]);
+
+        try {
+            $user = User::where('email', $request->email)->first();
+
+            if (!$user) {
+                throw new \Exception('User not found');
+            }
+
+            if ($user->otp != $request->otp) {
+                throw new \Exception('Invalid OTP');
+            }
+
+            $user->update([
+                'otp' => null,
+                'status' => AuthController::STATUS_ACTIVE,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'OTP verified successfully',
+            ], 200);
+        } catch (\Exception $e) {
+            return $this->handleException($e);
+        }
+    }
+
     public function forgotPassword(Request $request)
     {
         $request->validate([
@@ -305,9 +216,9 @@ class AuthController extends Controller
                 throw new \Exception('User not found');
             }
 
-            $otp = mt_rand(1000, 9999);
+            $otp = $this->generateOTP();
 
-            Mail::to($request->email)->send(new OTPMail($otp));
+            $this->sendOTPEmail($request->email, $otp);
 
             $user->update([
                 'reset_password_otp' => $otp,
@@ -319,10 +230,7 @@ class AuthController extends Controller
                 'message' => 'Reset OTP sent successfully',
             ], 200);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
+            return $this->handleException($e);
         }
     }
 
@@ -355,10 +263,7 @@ class AuthController extends Controller
                 'message' => 'Password reset successfully',
             ], 200);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
+            return $this->handleException($e);
         }
     }
 }

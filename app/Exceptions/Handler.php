@@ -3,6 +3,8 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -43,8 +45,24 @@ class Handler extends ExceptionHandler
      */
     public function register()
     {
-        $this->reportable(function (Throwable $e) {
-            //
+        $this->renderable(function (Throwable $e, $request) {
+            if ($request->is('api/*') || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], $this->getStatusCode($e));
+            }
         });
+    }
+
+    private function getStatusCode($exception)
+    {
+        if ($exception instanceof ValidationException) {
+            return 422;
+        }
+        if ($exception instanceof MethodNotAllowedHttpException) {
+            return 405;
+        }
+        return 500;
     }
 }
