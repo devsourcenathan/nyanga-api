@@ -24,7 +24,7 @@ use App\Http\Controllers\ServiceController;
 Route::group(['prefix' => 'auth'], function () {
     Route::post('signup/provider', [AuthController::class, 'signupProvider']);
     Route::post('signup/client', [AuthController::class, 'signupClient']);
-    Route::post('login', [AuthController::class, 'login']);
+    Route::post('login', [AuthController::clas s, 'login']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('password-otp', [AuthController::class, 'passwordOtp']);

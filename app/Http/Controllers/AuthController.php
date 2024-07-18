@@ -114,10 +114,6 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'surname' => 'required|string|max:255',
             'password' => 'required|string|min:6',
-            'telephone' => 'nullable|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'logo' => 'nullable|string|max:255',
-            'description' => 'nullable|string|max:255',
         ]);
 
         try {
@@ -182,11 +178,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email',
             'name' => 'required|string|max:255',
             'surname' => 'required|string|max:255',
-            'password' => 'required|string|min:6',
-            'telephone' => 'nullable|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'logo' => 'nullable|string|max:255',
-            'description' => 'nullable|string|max:255',
+            'password' => 'required|string|min:6'
         ]);
 
         try {
